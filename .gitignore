@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+Icon?
+ehthumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# YOLO/Training outputs
+runs/
+training/runs/
+weights/
+*.pt
+*.onnx
+
+# Data and Inputs
+input/
+training/football-players-detection-2/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
