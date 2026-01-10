@@ -19,12 +19,6 @@ ehthumbs.db
 runs/
 training/runs/
 weights/
-*.pt
-*.onnx
-
-# Data and Inputs
-input/
-training/football-players-detection-2/
 
 # Environments
 .env
@@ -38,3 +32,13 @@ venv.bak/
 # IDEs
 .vscode/
 .idea/
+
+# Model weights
+*.pt
+*.pth
+
+# Video outputs
+output/
+*.mp4
+*.avi
+
