@@ -14,7 +14,7 @@ class Tracker:
         self.model = YOLO(model_path) 
         self.tracker = sv.ByteTrack()
 
-    def add_position_to_tracks(sekf,tracks):
+    def add_position_to_tracks(self, tracks):
         for object, object_tracks in tracks.items():
             for frame_num, track in enumerate(object_tracks):
                 for track_id, track_info in track.items():
@@ -164,31 +164,48 @@ class Tracker:
 
         return frame
 
-    def draw_team_ball_control(self,frame,frame_num,team_ball_control):
-        # Draw a semi-transparent rectaggle 
+    def draw_team_ball_control(self, frame, frame_num, team_ball_control, pass_stats=None):
+        # Draw a semi-transparent rectangle 
         overlay = frame.copy()
-        cv2.rectangle(overlay, (1350, 850), (1900,970), (255,255,255), -1 )
+        # Adjusted size to fit more text
+        cv2.rectangle(overlay, (1350, 850), (1900, 1080), (255, 255, 255), -1)
         alpha = 0.4
         cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
 
         team_ball_control_till_frame = team_ball_control[:frame_num+1]
-        # Get the number of time each team had ball control
+        
+        # Calculate Possession %
         team_1_num_frames = team_ball_control_till_frame[team_ball_control_till_frame==1].shape[0]
         team_2_num_frames = team_ball_control_till_frame[team_ball_control_till_frame==2].shape[0]
         
-        if team_1_num_frames + team_2_num_frames == 0:
-            team_1 = 0
-            team_2 = 0
-        else:
-            team_1 = team_1_num_frames/(team_1_num_frames+team_2_num_frames)
-            team_2 = team_2_num_frames/(team_1_num_frames+team_2_num_frames)
+        total_frames = team_1_num_frames + team_2_num_frames
+        team_1_possession = team_1_num_frames / total_frames if total_frames > 0 else 0
+        team_2_possession = team_2_num_frames / total_frames if total_frames > 0 else 0
 
-        cv2.putText(frame, f"Team 1 Ball Control: {team_1*100:.2f}%",(1400,900), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 3)
-        cv2.putText(frame, f"Team 2 Ball Control: {team_2*100:.2f}%",(1400,950), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 3)
+        # Draw Possession
+        cv2.putText(frame, f"Possession Team 1: {team_1_possession*100:.1f}%", (1400, 900), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
+        cv2.putText(frame, f"Possession Team 2: {team_2_possession*100:.1f}%", (1400, 950), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
+
+        # Draw Pass Stats 
+        if pass_stats:
+            stats = pass_stats[frame_num]
+            
+            # Team 1 Stats
+            t1_total = stats[1]['total']
+            t1_success = stats[1]['success']
+            t1_pct = (t1_success / t1_total * 100) if t1_total > 0 else 0
+            
+            # Team 2 Stats
+            t2_total = stats[2]['total']
+            t2_success = stats[2]['success']
+            t2_pct = (t2_success / t2_total * 100) if t2_total > 0 else 0
+
+            cv2.putText(frame, f"Passes Team 1: {t1_success}/{t1_total} ({t1_pct:.0f}%)", (1400, 1000), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
+            cv2.putText(frame, f"Passes Team 2: {t2_success}/{t2_total} ({t2_pct:.0f}%)", (1400, 1050), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
 
         return frame
 
-    def draw_annotations(self,video_frames, tracks,team_ball_control):
+    def draw_annotations(self, video_frames, tracks, team_ball_control, pass_stats=None):
         output_video_frames= []
         for frame_num, frame in enumerate(video_frames):
             frame = frame.copy()
@@ -215,7 +232,7 @@ class Tracker:
 
 
             # Draw Team Ball Control
-            frame = self.draw_team_ball_control(frame, frame_num, team_ball_control)
+            frame = self.draw_team_ball_control(frame, frame_num, team_ball_control, pass_stats)
 
             output_video_frames.append(frame)
 

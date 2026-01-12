@@ -1,13 +1,14 @@
 from utils import read_video, save_video
 from trackers import Tracker
 import cv2
+import copy
 import numpy as np
 from team_assigner import TeamAssigner
 from player_ball_assigner import PlayerBallAssigner
 from camera_movement_estimator import CameraMovementEstimator
 from view_transformer import ViewTransformer
 from speed_and_distance_estimator import SpeedAndDistance_Estimator
-
+import copy
 
 def main():
     # Read Video
@@ -56,26 +57,82 @@ def main():
 
     
     # Assign Ball Aquisition
-    player_assigner =PlayerBallAssigner()
-    team_ball_control= []
+    player_assigner = PlayerBallAssigner()
+    team_ball_control = []
+    
+    # Pass Tracking Variables
+    current_passes = {
+        1: {'total': 0, 'success': 0},
+        2: {'total': 0, 'success': 0}
+    }
+    pass_stats_per_frame = [] 
+
+    current_possessor_candidate = -1
+    possession_frame_count = 0
+    POSSESSION_THRESHOLD = 5  # Frames a player must hold ball to confirm possession
+
+    last_confirmed_possessor = -1
+    last_confirmed_team = -1
+
     for frame_num, player_track in enumerate(tracks['players']):
         ball_bbox = tracks['ball'][frame_num][1]['bbox']
         assigned_player = player_assigner.assign_ball_to_player(player_track, ball_bbox)
 
+        # Filter Noise (Wait for Threshold)
         if assigned_player != -1:
-            tracks['players'][frame_num][assigned_player]['has_ball'] = True
-            team_ball_control.append(tracks['players'][frame_num][assigned_player]['team'])
-        else:
-            if team_ball_control:
-                team_ball_control.append(team_ball_control[-1])
+            if assigned_player == current_possessor_candidate:
+                possession_frame_count += 1
             else:
-                team_ball_control.append(0) # Default value if no team has ball yet
+                # New candidate, reset counter
+                current_possessor_candidate = assigned_player
+                possession_frame_count = 1
+        else:
+            # Ball is loose/in-air. Reset counter.
+            current_possessor_candidate = -1
+            possession_frame_count = 0
+
+        # Confirm Possession Change
+        if possession_frame_count >= POSSESSION_THRESHOLD:
+            # We have a valid possession!
+            confirmed_player = current_possessor_candidate
+            confirmed_team = tracks['players'][frame_num][confirmed_player]['team']
+
+            if confirmed_player != last_confirmed_possessor:
+                
+                # Count Pass (only if we had a previous holder)
+                if last_confirmed_possessor != -1:
+                    passing_team = last_confirmed_team
+                    
+                    # Increment Total Pass
+                    current_passes[passing_team]['total'] += 1
+                    
+                    # Increment Success if teams match
+                    if confirmed_team == passing_team:
+                        current_passes[passing_team]['success'] += 1
+                
+                # Update the "Last Confirmed" state
+                last_confirmed_possessor = confirmed_player
+                last_confirmed_team = confirmed_team
+
+        # Visual
+        if possession_frame_count >= POSSESSION_THRESHOLD:
+             tracks['players'][frame_num][current_possessor_candidate]['has_ball'] = True
+        
+        # Team Control Logic:
+        # If ball is loose, control stays with the last team that had it (Possession Rule)
+        if last_confirmed_team != -1:
+            team_ball_control.append(last_confirmed_team)
+        else:
+            team_ball_control.append(0) # No one has established control yet
+
+        pass_stats_per_frame.append(copy.deepcopy(current_passes))
+
     team_ball_control= np.array(team_ball_control)
 
 
     # Draw output 
     ## Draw object Tracks
-    output_video_frames = tracker.draw_annotations(video_frames, tracks,team_ball_control)
+    output_video_frames = tracker.draw_annotations(video_frames, tracks, team_ball_control, pass_stats_per_frame)
 
     ## Draw Camera movement
     output_video_frames = camera_movement_estimator.draw_camera_movement(output_video_frames,camera_movement_per_frame)
